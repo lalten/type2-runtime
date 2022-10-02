@@ -40,6 +40,7 @@
 
 #include <squashfuse/ll.h>
 #include <squashfuse/fuseprivate.h>
+#include "f2_sqfs_ll.h"
 
 extern dev_t sqfs_makedev(int maj, int min);
 
@@ -977,22 +978,35 @@ int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
 
     /* STARTUP FUSE */
     if (!err) {
-        sqfs_ll_chan ch;
         err = -1;
-        if (sqfs_ll_mount(
-                &ch,
-                fuse_cmdline_opts.mountpoint,
-                &args,
-                &sqfs_ll_ops,
-                sizeof(sqfs_ll_ops),
-                ll) == SQFS_OK) {
-            if (sqfs_ll_daemonize(fuse_cmdline_opts.foreground) != -1) {
-                if (fuse_set_signal_handlers(ch.session) != -1) {
+        bool use_fuse2 = false;
+        sqfs_ll_chan ch;
+        f2_sqfs_ll_chan f2_ch;
+        sqfs_err ret = sqfs_ll_mount(&ch, fuse_cmdline_opts.mountpoint, &args, &sqfs_ll_ops, sizeof(sqfs_ll_ops), ll);
+        if (ret != SQFS_OK)
+        {
+            fprintf(stderr, "sqfs_ll_mount failed (%s), trying f2_sqfs_ll_mount... ", strerror(errno));
+            use_fuse2 = true;
+            ret = f2_sqfs_ll_mount(&f2_ch, fuse_cmdline_opts.mountpoint, &args, &sqfs_ll_ops, sizeof(sqfs_ll_ops), ll);
+            if (ret == SQFS_OK)
+                fprintf(stderr, "ok\n");
+            else
+                perror("failed");
+        }
+        if (ret == SQFS_OK) {
+            if (sqfs_ll_daemonize(fuse_cmdline_opts.foreground)) {
+                perror("sqfs_ll_daemonize failed");
+            } else {
+                if (fuse_set_signal_handlers(ch.session)) {
+                    perror("fuse_set_signal_handlers failed");
+                } else {
                     if (opts.idle_timeout_secs) {
                         setup_idle_timeout(ch.session, opts.idle_timeout_secs);
                     }
+                    fprintf(stderr, "squashfuse: mountpoint is %s\n", fuse_cmdline_opts.mountpoint);
                     if (mounted)
                         mounted();
+                    fprintf(stderr, "done\n");
                     /* FIXME: multithreading */
                     err = fuse_session_loop(ch.session);
                     teardown_idle_timeout();
@@ -1000,7 +1014,11 @@ int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
                 }
             }
             sqfs_ll_destroy(ll);
-            sqfs_ll_unmount(&ch, fuse_cmdline_opts.mountpoint);
+            fprintf(stderr, "unmounting now\n");
+            if (use_fuse2)
+                f2_sqfs_ll_unmount(&f2_ch, fuse_cmdline_opts.mountpoint);
+            else
+                sqfs_ll_unmount(&ch, fuse_cmdline_opts.mountpoint);
         }
     }
     fuse_opt_free_args(&args);
@@ -1709,6 +1727,11 @@ int main(int argc, char* argv[]) {
         char filename[mount_dir_size + 8]; /* enough for mount_dir + "/AppRun" */
         strcpy(filename, mount_dir);
         strcat(filename, "/AppRun");
+        if (access(filename, F_OK)) {
+            fprintf(stderr, "%s does not exist\n", filename);
+            exit(EXIT_EXECERROR);
+        }
+
 
         /* TODO: Find a way to get the exit status and/or output of this */
         execv(filename, real_argv);
