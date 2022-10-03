@@ -14,18 +14,18 @@ apk add alpine-sdk util-linux strace file autoconf automake libtool
 
 # Build static squashfuse
 apk add fuse3-static fuse3-dev zstd-dev zstd-static zlib-dev zlib-static
-wget -c -q "https://github.com/vasi/squashfuse/archive/e51978c.tar.gz"
-tar xf e51978c.tar.gz
-rm e51978c.tar.gz
-cd squashfuse-*/
+squashfuse_version="0.1.105"
+wget -c -q "https://github.com/vasi/squashfuse/archive/refs/tags/${squashfuse_version}.tar.gz"
+tar xf "${squashfuse_version}.tar.gz"
+rm "${squashfuse_version}.tar.gz"
+cd "squashfuse-${squashfuse_version}"
 ./autogen.sh
-./configure --help
-./configure CFLAGS=-no-pie LDFLAGS=-static
+./configure --disable-demo CFLAGS=-no-pie LDFLAGS=-static
 make -j
 make install
 /usr/bin/install -c -m 644 fuseprivate.h /usr/local/include/squashfuse
 cd -
-rm -rf squashfuse-*
+rm -rf "squashfuse-${squashfuse_version}"
 
 # Build static AppImage runtime
 export GIT_COMMIT=$(cat src/runtime/version)
