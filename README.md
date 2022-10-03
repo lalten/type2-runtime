@@ -4,7 +4,7 @@ The runtime is the executable part of every AppImage. It mounts the payload via 
 
 This repository builds a statically linked runtime for type-2 AppImages in a [Alpine Linux](https://alpinelinux.org/) chroot with [musl libc](https://www.musl-libc.org/).
 
-Since the runtime is linked statically, libfuse2 is no longer required on the target system.
+Since the runtime is linked statically, libfuse is no longer required on the target system.
 
 ## Notes for users
 
