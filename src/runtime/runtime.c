@@ -182,6 +182,8 @@ typedef Elf32_Nhdr Elf_Nhdr;
 static char* fname;
 static Elf64_Ehdr ehdr;
 
+static char temp_base[PATH_MAX] = P_tmpdir;
+
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #define ELFDATANATIVE ELFDATA2LSB
 #elif __BYTE_ORDER == __BIG_ENDIAN
@@ -884,18 +886,75 @@ void build_mount_point(char* mount_dir, const char* const argv0, char const* con
     mount_dir[templen + 8 + namelen + 6] = 0; // null terminate destination
 }
 
+// Check if a program is on $PATH and return the full path to it
+// inspired by https://stackoverflow.com/a/41231524/5559867
+int which(const char *cmd, char *out_path) {
+    const char *path = getenv("PATH");
+    char *buf = malloc(strlen(path)+strlen(cmd)+3);
+    for(; *path; ++path) {  // loop as long as we have stuff to examine in path
+        char *p = buf;  // start from the beginning of the buffer
+        for(; *path && *path!=':'; ++path,++p)  // copy in buf the current path element
+            *p = *path;
+        if(p==buf) *p++='.';  // empty path entries are treated like "."
+        if(p[-1]!='/') *p++='/';  // slash and command name
+        strcpy(p, cmd);
+        if(access(buf, X_OK)==0) {  // check if we can execute it
+            if (out_path)
+                strcpy(out_path, buf);
+            free(buf);
+            return 0;
+        }
+        if(!*path) break;
+    }
+    free(buf);
+    return 1;
+}
+
+// If fusermount3 is not on $PATH but fusermount is, create a symlink to fusermount called fusermount3 and add it in $PATH to trick fuse3 into using it.
+char *maybe_symlink_fusermount(char *tmpdir) {
+    char *fusermount_path = malloc(PATH_MAX);
+    if(which("fusermount3", NULL)) {
+        // no fusermount3 on $PATH
+        if(which("fusermount", fusermount_path)) {
+            // no fusermount on $PATH either
+            tmpdir = NULL;
+        } else {
+            // fusermount is on $PATH, create symlink
+            if (mkdtemp(tmpdir) == NULL) {
+                fprintf(stderr, "Could not mkdtemp(\"%s\"): %s\n", tmpdir, strerror(errno));
+                tmpdir =  NULL;
+            } else {
+                char *linkname = strcpy(malloc(PATH_MAX), tmpdir);
+                strcat(linkname, "/fusermount3");
+                if(symlink(fusermount_path, linkname))
+                {
+                    fprintf(stderr, "symlink from %s to %s failed: %s\n", linkname, fusermount_path, strerror(errno));
+                    rm_recursive(tmpdir);
+                    tmpdir =  NULL;
+                } else {
+                    const char *path = getenv("PATH");
+                    char *newpath = malloc(strlen(path) + strlen(tmpdir) + 2);
+                    strcpy(newpath, path);
+                    strcat(newpath, ":");
+                    strcat(newpath, tmpdir);
+                    setenv("PATH", newpath, 1);
+                    free(newpath);
+                    if (getenv("VERBOSE") != NULL)
+                        fprintf(stderr, "Added symlink from %s to %s to $PATH\n", linkname, fusermount_path);
+                }
+                free(linkname);
+            }
+        }
+    }
+    free(fusermount_path);
+    return tmpdir;
+}
+
 int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
     struct fuse_args args;
     sqfs_opts opts;
 
-#if FUSE_USE_VERSION >= 30
     struct fuse_cmdline_opts fuse_cmdline_opts;
-#else
-    struct {
-        char *mountpoint;
-        int mt, foreground;
-    } fuse_cmdline_opts;
-#endif
 
     int err;
     sqfs_ll* ll;
@@ -937,14 +996,7 @@ int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
     if (fuse_opt_parse(&args, &opts, fuse_opts, sqfs_opt_proc) == -1)
         sqfs_usage(argv[0], true);
 
-#if FUSE_USE_VERSION >= 30
     if (fuse_parse_cmdline(&args, &fuse_cmdline_opts) != 0)
-#else
-        if (fuse_parse_cmdline(&args,
-                               &fuse_cmdline_opts.mountpoint,
-                               &fuse_cmdline_opts.mt,
-                               &fuse_cmdline_opts.foreground) == -1)
-#endif
         sqfs_usage(argv[0], true);
     if (fuse_cmdline_opts.mountpoint == NULL)
         sqfs_usage(argv[0], true);
@@ -977,15 +1029,16 @@ int fusefs_main(int argc, char* argv[], void (* mounted)(void)) {
 
     /* STARTUP FUSE */
     if (!err) {
+        char *fusermount_symlink_tempdir = strcpy(malloc(PATH_MAX),  temp_base);
+        fusermount_symlink_tempdir = strcat(fusermount_symlink_tempdir, "/fusermount.XXXXXX");
+        fusermount_symlink_tempdir = maybe_symlink_fusermount(fusermount_symlink_tempdir);
         sqfs_ll_chan ch;
         err = -1;
-        if (sqfs_ll_mount(
-                &ch,
-                fuse_cmdline_opts.mountpoint,
-                &args,
-                &sqfs_ll_ops,
-                sizeof(sqfs_ll_ops),
-                ll) == SQFS_OK) {
+        sqfs_err ret = sqfs_ll_mount(&ch, fuse_cmdline_opts.mountpoint, &args, &sqfs_ll_ops, sizeof(sqfs_ll_ops), ll);
+        if (fusermount_symlink_tempdir)
+            rm_recursive(fusermount_symlink_tempdir);
+        free(fusermount_symlink_tempdir);
+        if (ret == SQFS_OK) {
             if (sqfs_ll_daemonize(fuse_cmdline_opts.foreground) != -1) {
                 if (fuse_set_signal_handlers(ch.session) != -1) {
                     if (opts.idle_timeout_secs) {
@@ -1350,8 +1403,6 @@ int main(int argc, char* argv[]) {
 
     // temporary directories are required in a few places
     // therefore we implement the detection of the temp base dir at the top of the code to avoid redundancy
-    char temp_base[PATH_MAX] = P_tmpdir;
-
     {
         const char* const TMPDIR = getenv("TMPDIR");
         if (TMPDIR != NULL)
