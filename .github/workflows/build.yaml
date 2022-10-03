@@ -2,10 +2,10 @@ name: build
 
 on:
   push:
-    branches:    
-      - 'main'
+    branches:
+      - "main"
   pull_request:
-  
+
 # This ensures that jobs get canceled when force-pushing
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -13,7 +13,7 @@ concurrency:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  
+
 # The default Debian shell (dash) is faster than bash at running scripts,
 # and using bash when it is not needed doesn't make sense.
 defaults:
@@ -25,56 +25,41 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
-      fail-fast: false
       matrix:
-        include:
-        - { qemu_arch: x86,     appimage_arch: x86 }
-        - { qemu_arch: x86_64,  appimage_arch: x86_64 }
-        - { qemu_arch: armv7,   appimage_arch: armhf }
-        - { qemu_arch: aarch64, appimage_arch: aarch64 }
+        arch: [aarch64, armv7, i686, x86_64]
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
-    - name: Get git hash
-      run: |
-        VERSION="$(date --utc +%Y-%m-%d)-$(git rev-parse --short HEAD)"
-        echo -n "https://github.com/${GITHUB_REPOSITORY}/releases/tag/build-${VERSION}" > src/runtime/version
-        echo "${VERSION}" > tag.txt
+      - name: Get git hash
+        run: |
+          VERSION="$(date --utc +%Y-%m-%d)-$(git rev-parse --short HEAD)"
+          echo -n "https://github.com/${GITHUB_REPOSITORY}/releases/tag/build-${VERSION}" > src/runtime/version
+          echo "${VERSION}" > tag.txt
 
-    - name: Build (x86)
-      if: contains(matrix.qemu_arch, 'x86')
-      env:
-        ARCHITECTURE: ${{ matrix.appimage_arch }}
-      run: ./chroot_build.sh
+      - name: Build
+        uses: lalten/run-on-arch-action@amd64-support # should be switched to `uraimo/run-on-arch-action@v2` when https://github.com/uraimo/run-on-arch-action/pull/94 is merged
+        with:
+          arch: ${{ matrix.arch }}
+          distro: alpine_latest
+          dockerRunArgs: |
+            --volume "${PWD}/out:/out"
+          run: ./build.sh
 
-    - name: Build (qemu)
-      if: ${{ !contains(matrix.qemu_arch, 'x86') }}
-      uses: uraimo/run-on-arch-action@v2
-      with:
-        arch: ${{ matrix.qemu_arch }}
-        distro: alpine_latest
-        env: |
-          ARCHITECTURE: ${{ matrix.appimage_arch }}
-        dockerRunArgs: |
-          --volume "${PWD}/out:/out"
-          --volume "${PWD}/src:/src"
-        run: ./build.sh
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: artifacts
+          path: ./out/*
 
-    - name: Upload Build Artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: artifacts
-        path: ./out/*
-
-    - name: Create Release
-      if: github.event_name != 'pull_request' && github.ref_name == 'main'
-      run: |
-        VERSION="$(cat tag.txt)"
-        TAG="build-${VERSION}"
-        if gh release view "${TAG}" > /dev/null; then
-          gh release upload  "${TAG}" out/*
-        else
-          gh release create --prerelease --title "Build ${VERSION}"  "${TAG}" out/*
-        fi
+      - name: Create Release
+        if: github.event_name != 'pull_request' && github.ref_name == 'main'
+        run: |
+          VERSION="$(cat tag.txt)"
+          TAG="build-${VERSION}"
+          if gh release view "${TAG}" > /dev/null; then
+            gh release upload  "${TAG}" out/*
+          else
+            gh release create --prerelease --title "Build ${VERSION}"  "${TAG}" out/*
+          fi
