@@ -30,11 +30,11 @@ rm -rf "squashfuse-${squashfuse_version}"
 # Build static AppImage runtime
 export GIT_COMMIT=$(cat src/runtime/version)
 cd src/runtime
-make runtime-fuse3 -j
-file runtime-fuse3
-strip runtime-fuse3
-ls -lh runtime-fuse3
-echo -ne 'AI\x02' | dd of=runtime-fuse3 bs=1 count=3 seek=8 conv=notrunc # magic bytes, always do AFTER strip
+make runtime -j
+file runtime
+strip runtime
+ls -lh runtime
+echo -ne 'AI\x02' | dd of=runtime bs=1 count=3 seek=8 conv=notrunc # magic bytes, always do AFTER strip
 cd -
 
 # Use the same architecture names as https://github.com/AppImage/AppImageKit/releases/
@@ -43,4 +43,4 @@ appimage_arch="${appimage_arch/armv*/armhf}" # replaces "armv7l" with "armhf"
 if [ "$appimage_arch" = "x86" ]; then appimage_arch=i686; fi
 
 mkdir -p out
-mv src/runtime/runtime-fuse3 "out/runtime-fuse3-${appimage_arch}"
+mv src/runtime/runtime "out/runtime-${appimage_arch}"
