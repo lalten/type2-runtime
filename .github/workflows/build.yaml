@@ -2,10 +2,7 @@ name: build
 
 on:
   push:
-    # branches:
-    # - 'main'
-    # NOTE: pull_request tests a potential merge conflict. push builds the branch as it would build main. Both serve separate purposes.
-    # Especially when working with CI changes, we may want to see both, hence not limiting builds to the main branch.
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -17,6 +14,7 @@ concurrency:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         appimage_arch: [x86_64, aarch64]
     runs-on: ubuntu-latest
