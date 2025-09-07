@@ -13,18 +13,17 @@ concurrency:
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        appimage_arch: [x86_64, aarch64]
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@v5
-    - run: >-
-        bazel build //:runtime
-        --platforms @toolchains_llvm_bootstrapped//platforms/libc_aware:linux_${{ matrix.appimage_arch }}_musl
+    
+    - name: Build multi-platform runtimes
+      run: bazel build //:runtimes
+    
     - uses: actions/upload-artifact@v4
       with:
-        name: runtime_${{ matrix.appimage_arch }}
-        path: bazel-bin/runtime
+        name: runtimes
+        path: |
+          bazel-bin/runtime_x86_64/runtime
+          bazel-bin/runtime_aarch64/runtime

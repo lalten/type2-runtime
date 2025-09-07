@@ -1,5 +1,6 @@
 module(name = "type2-runtime")
 
+bazel_dep(name = "aspect_bazel_lib", version = "2.21.1")
 bazel_dep(name = "libfuse", version = "3.16.2")
 # bazel_dep(name = "mimalloc", version = "2.2.4")
 bazel_dep(name = "platforms", version = "1.0.0")
@@ -17,7 +18,7 @@ single_version_override(
 
 git_override(
     module_name = "toolchains_llvm_bootstrapped",
-    commit = "a40866a4900af4fac948370b2c66ed68ffd88521",
+    commit = "48093f17a89503b981151a4c60ad2a47539516f4",
     remote = "https://github.com/cerisier/toolchains_llvm_bootstrapped",
 )
 
