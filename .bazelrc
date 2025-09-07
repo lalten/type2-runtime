@@ -1,2 +1,1 @@
 build --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
-build --@toolchains_llvm_bootstrapped//config:empty_sysroot=false
