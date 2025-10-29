@@ -19,7 +19,7 @@ jobs:
       uses: actions/checkout@v5
     
     - name: Build multi-platform runtimes
-      run: bazel build //:runtimes
+      run: bazel build --compilation_mode opt //:runtimes
     
     - uses: actions/upload-artifact@v4
       with:
