@@ -10,6 +10,7 @@ ARCHS = [
         name = "runtime_" + arch,
         binary = "//runtime",
         target_platform = "@toolchains_llvm_bootstrapped//platforms/libc_aware:linux_{}_musl".format(arch),
+        visibility = ["//visibility:public"],
     )
     for arch in ARCHS
 ]
@@ -17,4 +18,5 @@ ARCHS = [
 filegroup(
     name = "runtimes",
     srcs = [":runtime_" + arch for arch in ARCHS],
+    visibility = ["//visibility:public"],
 )
