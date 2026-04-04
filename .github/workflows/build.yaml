@@ -31,8 +31,7 @@ jobs:
             --compilation_mode opt
             --platforms @llvm//platforms:linux_${{ matrix.platform }}_musl
 
-      - name: Build multi-platform runtimes
-        run: bazel build //runtime
+      - run: bazel build //runtime
 
       - run: cp bazel-bin/runtime/runtime ${{runner.temp}}/runtime-${{ matrix.platform }}
       - uses: actions/upload-artifact@v7
