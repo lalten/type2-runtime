@@ -28,8 +28,8 @@ jobs:
           disk-cache: ${{ github.workflow }}
           repository-cache: true
           bazelrc: |
-            --compilation_mode opt
-            --platforms @llvm//platforms:linux_${{ matrix.platform }}_musl
+            common --compilation_mode opt
+            common --platforms @llvm//platforms:linux_${{ matrix.platform }}_musl
 
       - run: bazel build //runtime
 
