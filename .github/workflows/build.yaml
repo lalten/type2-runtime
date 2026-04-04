@@ -6,7 +6,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-# This ensures that jobs get canceled when force-pushing
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -15,8 +14,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout
-      uses: actions/checkout@v5
+    - uses: actions/checkout@v6
+    - uses: bazel-contrib/setup-bazel@0.19.0
+      with:
+        bazelisk-cache: true
+        disk-cache: ${{ github.workflow }}
+        repository-cache: true
     
     - name: Build multi-platform runtimes
       run: bazel build --compilation_mode opt //:runtimes
