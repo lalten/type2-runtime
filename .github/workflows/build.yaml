@@ -34,3 +34,12 @@ jobs:
         path: |
           bazel-bin/runtime_x86_64/runtime
           bazel-bin/runtime_aarch64/runtime
+
+  required:
+    runs-on: ubuntu-slim
+    needs: [build]
+    if: always()
+    steps:
+    - name: Fail if any ancestor job failed
+      if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+      run: exit 1
