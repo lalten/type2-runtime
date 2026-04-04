@@ -54,3 +54,19 @@ jobs:
       - name: Fail if any ancestor job failed
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: exit 1
+
+  release:
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-slim
+    needs: [required]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          draft: true
+          files: runtime-*
