@@ -1,0 +1,14 @@
+repos:
+  - repo: https://github.com/keith/pre-commit-buildifier
+    rev: 8.5.1.1
+    hooks:
+      - id: buildifier
+      - id: buildifier-lint
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+  - repo: https://github.com/34j/mirrors-prettier
+    rev: v3.7.4
+    hooks:
+      - id: prettier

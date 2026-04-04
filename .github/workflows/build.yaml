@@ -18,28 +18,34 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
-    - uses: bazel-contrib/setup-bazel@0.19.0
-      with:
-        bazelisk-cache: true
-        disk-cache: ${{ github.workflow }}
-        repository-cache: true
-    
-    - name: Build multi-platform runtimes
-      run: bazel build --compilation_mode opt //:runtimes
-    
-    - uses: actions/upload-artifact@v4
-      with:
-        name: runtimes
-        path: |
-          bazel-bin/runtime_x86_64/runtime
-          bazel-bin/runtime_aarch64/runtime
+      - uses: actions/checkout@v6
+      - uses: bazel-contrib/setup-bazel@0.19.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
+
+      - name: Build multi-platform runtimes
+        run: bazel build --compilation_mode opt //:runtimes
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runtimes
+          path: |
+            bazel-bin/runtime_x86_64/runtime
+            bazel-bin/runtime_aarch64/runtime
+
+  prek:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: j178/prek-action@v2
 
   required:
     runs-on: ubuntu-slim
-    needs: [build]
+    needs: [build, prek]
     if: always()
     steps:
-    - name: Fail if any ancestor job failed
-      if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
-      run: exit 1
+      - name: Fail if any ancestor job failed
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
